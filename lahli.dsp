@@ -2,34 +2,58 @@
       import("stdfaust.lib");
       import("../LazyLeveler/slidingReduce.lib");
 
-      maxHoldTime = pow(2,12);
+      // todo: make hold SR dependant
+      // Subject: Re: [Faudiostream-users] Status of control/enable primitives and the
+      // -es compiler option
+      // Date: wo 24 okt 2018 19:32:15 CEST
+
+      maxHoldTime = 4;
+      // maxHoldTime = pow(2,12);
       maxAttackTime = 64;
 
       SampleRate = 44100;
 
       maxHoldMs   = maxHoldTime*1000/SampleRate;
 
-      process(x,y) = limiter(x,y);
+      process =
+      // limiter;
+      limiter_N_chan(2) ;
 
       limiter(x,y) =
-        l@latency * lGain
-        ,
-        r@latency * rGain
-        ,
-        lGain
+      l@latency * gain(l),
+      r@latency * gain(r),
+      gain(l)
       with {
           l = x*inGain;
           r = y*inGain;
-          latency = maxHoldTime+maxAttackTime;
+          latency = maxHoldTime+maxAttackTime:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", maxHoldTime+maxAttackTime, maxHoldTime+maxAttackTime);
           stereoGain = min(dBgain(l),dBgain(r));
-          lGain = dBgain(l) , stereoGain : linearXfade(link):release:meter:ba.db2linear;
-          rGain = dBgain(r) , stereoGain : linearXfade(link):release:meter:ba.db2linear;
+          gain(x) = dBgain(x) , stereoGain : linearXfade(link):release:meter:ba.db2linear;
       };
 
+      // generalise limiter gains for N channels.
+      // first we define a mono version:
+      limiter_gain_N_chan(1) =
+      dBgain;
+
+      // The actual N-channel version:
+      // Calculate the maximum gain reduction of N channels,
+      // and then crossfade between that and each channel's own gain reduction,
+      // to link/unlink channels
+      limiter_gain_N_chan(N) =
+      par(i, N, dBgain)
+      <:(si.bus(N),(minimum(N)<:si.bus(N))):ro.interleave(N,2):par(i,N,(linearXfade(link)));
+
+
+      latency = maxHoldTime+maxAttackTime:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", maxHoldTime+maxAttackTime, maxHoldTime+maxAttackTime);
+
+      limiter_N_chan(N) =
+      (par(i,N,_*inGain )<:
+         (limiter_gain_N_chan(N),si.bus(N))
+      )
+      :(ro.interleave(N,2):par(i,N,(release:meter:ba.db2linear)*(_@latency)));
+
       linearXfade(x,a,b) = a*(1-x),b*x : +;
-
-      RMS(time) = slidingRMSn(time,maxRMStime);
-
 
       dBgain(x) =
             ((
@@ -45,8 +69,12 @@
       currentLevel(x)     = ((abs(x)):ba.linear2db);
 
       currentdown(x)      =
-        par(i, maxAttackTime, (gain_computer(threshold,knee,currentLevel(x))@i)/(maxAttackTime-i) ) : blockmin(maxAttackTime);
+        par(i, maxAttackTime, (gain_computer(threshold,knee,currentLevel(x))@i)/(maxAttackTime-i) ) : minimum(maxAttackTime);
 
+        // get the minimum of N inputs:
+        minimum(1) = _;
+        minimum(2) = min;
+        minimum(N) = (minimum(N-1),_):min;
       blockmin(2) = min;
       blockmin(n) = blockmin(n/2),blockmin(n/2):min;
 
