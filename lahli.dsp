@@ -1,14 +1,13 @@
-
       import("stdfaust.lib");
       import("../LazyLeveler/slidingReduce.lib");
 
-      // todo: make hold SR dependant
+      // todo: make attack and hold SR dependant
       // Subject: Re: [Faudiostream-users] Status of control/enable primitives and the
       // -es compiler option
       // Date: wo 24 okt 2018 19:32:15 CEST
 
-      maxHoldTime = 4;
-      // maxHoldTime = pow(2,12);
+      //maxHoldTime = 4;
+      maxHoldTime = pow(2,12);
       maxAttackTime = 64;
 
       SampleRate = 44100;
@@ -17,7 +16,11 @@
 
       process =
       // limiter;
-      limiter_N_chan(2) ;
+      si.bus(2)<:si.bus(4):
+      limiter_N_chan(2),
+      (_*inGain : dBgain:release:ba.db2linear),
+      (_*inGain : dBgain:release:ba.db2linear)
+      ;
 
       limiter(x,y) =
       l@latency * gain(l),
@@ -56,27 +59,25 @@
       linearXfade(x,a,b) = a*(1-x),b*x : +;
 
       dBgain(x) =
-            ((
-                ((now > futuredown) * (min(now,_)))
-                +
-                ((now <= futuredown) * now)
-                ) )~_
+      (
+          ((now >  futuredown) * (min(now,_)))
+          +
+          ((now <= futuredown) * now)
+      )~_
         with {
-            now = currentdown(x)@(maxHoldTime);
-            futuredown = currentdown(x):slidingMinN(holdTime,maxHoldTime)@max(0,(maxHoldTime - holdTime ));
+          now = currentdown(x)@(maxHoldTime);
+          futuredown = currentdown(x):slidingMinN(holdTime,maxHoldTime)@max(0,(maxHoldTime - holdTime ));
         };
 
       currentLevel(x)     = ((abs(x)):ba.linear2db);
 
-      currentdown(x)      =
-        par(i, maxAttackTime, (gain_computer(threshold,knee,currentLevel(x))@i)/(maxAttackTime-i) ) : minimum(maxAttackTime);
+      currentdown(x) =
+      par(i, maxAttackTime+1, (gain_computer(threshold,knee,currentLevel(x))@i)*((i+1)/(maxAttackTime+1)) ) : minimum(maxAttackTime+1);
 
-        // get the minimum of N inputs:
-        minimum(1) = _;
-        minimum(2) = min;
-        minimum(N) = (minimum(N-1),_):min;
-      blockmin(2) = min;
-      blockmin(n) = blockmin(n/2),blockmin(n/2):min;
+      // get the minimum of N inputs:
+      minimum(1) = _;
+      minimum(2) = min;
+      minimum(N) = (minimum(N-1),_):min;
 
 
 
