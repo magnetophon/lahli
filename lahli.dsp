@@ -6,33 +6,37 @@
       // -es compiler option
       // Date: wo 24 okt 2018 19:32:15 CEST
 
-      //maxHoldTime = 4;
+      // maxHoldTime = 4;
       maxHoldTime = pow(2,12);
-      maxAttackTime = 64;
+      maxAttackTime = 512;
 
       SampleRate = 44100;
 
       maxHoldMs   = maxHoldTime*1000/SampleRate;
 
-      process =
-      // limiter;
+      process = limiter;
+
+      mbTest =
+      si.bus(1)<:
+      ( (
+              fi.filterbank(5,(par(i, 3, fx(i))))
+              // fi.mth_octave_filterbank5(1,fx,4)
+            // :limiter_N_chan(4)
+           : par(i, 4, limiter_N_chan(1))
+           :>_)
+                   // ,_//(_*-1)
+                   :limiter_N_chan(1)
+                   )//:>_
+      // fi.low_shelf
+      ;
+      fx(i) = hslider("fx%i", 1000, 20, 20000, 1);
+
+      limiter =
       si.bus(2)<:si.bus(4):
       limiter_N_chan(2),
-      (_*inGain : dBgain:release:ba.db2linear),
-      (_*inGain : dBgain:release:ba.db2linear)
+      (par(i, 2, _*inGain ) : limiter_gain_N_chan(2): par(i, 2, release:ba.db2linear))
       ;
 
-      limiter(x,y) =
-      l@latency * gain(l),
-      r@latency * gain(r),
-      gain(l)
-      with {
-          l = x*inGain;
-          r = y*inGain;
-          latency = maxHoldTime+maxAttackTime:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", maxHoldTime+maxAttackTime, maxHoldTime+maxAttackTime);
-          stereoGain = min(dBgain(l),dBgain(r));
-          gain(x) = dBgain(x) , stereoGain : linearXfade(link):release:meter:ba.db2linear;
-      };
 
       // generalise limiter gains for N channels.
       // first we define a mono version:
@@ -49,6 +53,8 @@
 
 
       latency = maxHoldTime+maxAttackTime:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", maxHoldTime+maxAttackTime, maxHoldTime+maxAttackTime);
+
+      limiter_N_chan(1) = _*inGain <:((dBgain:release:meter:ba.db2linear)*_@latency);
 
       limiter_N_chan(N) =
       (par(i,N,_*inGain )<:
@@ -72,8 +78,11 @@
       currentLevel(x)     = ((abs(x)):ba.linear2db);
 
       currentdown(x) =
-      par(i, maxAttackTime+1, (gain_computer(threshold,knee,currentLevel(x))@i)*((i+1)/(maxAttackTime+1)) ) : minimum(maxAttackTime+1);
+      par(i, maxAttackTime+1, (gain_computer(threshold,knee,currentLevel(x))@i)*(((i+1)/(maxAttackTime+1)) : attackShaper ) ) : minimum(maxAttackTime+1);
 
+      attackShaper(fraction)= ma.tanh(fraction:pow(attack:attackScale)*(attack*5+.1))/ma.tanh(attack*5+.1);
+      attackScale(x) = (x+1):pow(7); //from 0-1 to 1-128, just to make the knob fit the aural experience better
+      attack                  = (hslider("[2]attack shape[tooltip: 0 gives a linear attack (slow), 1 a strongly exponential one (fast)]", 1 , 0, 1 , 0.001));
       // get the minimum of N inputs:
       minimum(1) = _;
       minimum(2) = min;
