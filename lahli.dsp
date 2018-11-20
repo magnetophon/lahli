@@ -6,27 +6,89 @@
       // -es compiler option
       // Date: wo 24 okt 2018 19:32:15 CEST
 
-      maxHoldTime = 4;
-      maxAttackTime = 4;
-      // maxHoldTime = pow(2,12);
+      // todo:
+// attack =
+// 1) find nr of samples between changes
+// 2) shorten attack to nr of samples in 1) with a max of maxAttackTime
+// 3) trigger ramp
+// 4) use ramp for attackShaper
+
+// * two blocks of attack-delay: one for analysys, one for gain:
+// ** in analysis block:
+// *** at change, start counting from 0 to maxAttackTime
+// ** in the gain block:
+
+      // make an array with:
+      // - startGR
+      // - length
+      // gain = (attackRamp@maxAttackTime * ( endGR - startGR )) + startGR
+      // attackGain =
+
+
+
+      attackRel(x) = (x:attackRamp@maxAttackTime * ( endGR - startGR )) + startGR
+      with {
+          length = rwtable(size+1, 0, windex, samplesBetweenChange(x) , Lrindex);
+          endGR = rwtable(size+1, 0, windex, x, GRrindex);
+          startGR = rwtable(size+1, 0, windex, x, (GRrindex-1)%size);
+          windex = select2(x<x',-1, windexCount);
+          windexCount = (_<:select2(x<x',_+1,_) % size)~_;
+          GRrindex = windexCount;
+          Lrindex = (windexCount-1)%size;
+          attackRamp(x) = // ramp from 0 to 1 in the time between 2 attacks:
+          ((attackCount(x)@2) / length) : attackShaper; // latency is 2
+      };
+
+      // maxHoldTime = 4;
+      // maxAttackTime = 4;
+      maxHoldTime = pow(2,12);
       // maxAttackTime = 512;
+      maxAttackTime = 2048;
       // maxAttackTime = 64;
 
       SampleRate = 44100;
 
       maxHoldMs   = maxHoldTime*1000/SampleRate;
 
-      process = control(os.osc(440), choice==0), control(os.osc(660), choice==1)
-      :> _;
+      // process = control(os.osc(440), choice==0), control(os.osc(660), choice==1)
+      // :> _;
 
       lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
       :> si.bus(2)
       ;
       choice  = button("choice");
 
+      size = maxAttackTime;
 
-      // process =
-      // limiter(2);
+      // process(x) =
+      // attackRel(x);
+      // (_<:select2(x==x',_+1,_) % size)~_;
+      // samplesBetweenChange;
+      process =
+      limiter(2);
+
+
+
+      attackGain2(ramp,length, x) =
+          ((x-prev)*ramp)+prev
+      with {
+          prev = x: ba.sAndH(ramp==0);
+      };
+
+      // attackRamp(x) = // ramp from 0 to 1 in the time between 2 attacks:
+      // ((attackCount(x)@2) / samplesBetweenChange(x)) : attackShaper; // latency is 2
+
+      attackCount(x) =
+      // While trig is 1 the output is 0.
+      // The countup starts with the transition of trig from 1 to 0.
+      ba.countup(maxAttackTime, x<x'); // latency is 0
+
+
+      // sAndH: (0 for hold, 1 for bypass)
+      samplesBetweenChange(x) =  attackCount(x)' : ba.sAndH(x==x'); // latency is 1
+
+
+
 
       attackGRrelative =
       (0: seq(i,maxAttackTime,
@@ -40,7 +102,8 @@
       limiter(N) =
       si.bus(N)<:si.bus(N*2):
       limiter_N_chan(N),
-      ((par(i, N, _*inGain ) : limiter_gain_N_chan(N): par(i, N, attackGain:release:ba.db2linear)));
+      // ((par(i, N, _*inGain ) : limiter_gain_N_chan(N): par(i, N, attackGain:release:ba.db2linear)));
+      ((par(i, N, _*inGain ) : limiter_gain_N_chan(N): par(i, N, (attackRel:release)/30)));
 
       // generalise limiter gains for N channels.
       // first we define a mono version:
@@ -56,17 +119,17 @@
       <:(si.bus(N),(minimum(N)<:si.bus(N))):ro.interleave(N,2):par(i,N,(linearXfade(link)));
 
 
-      latency = maxHoldTime + maxAttackTime;
+      latency = maxHoldTime + (maxAttackTime*2);
       latency_meter = latency:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", latency, latency);
 
       // not really needed:
-      limiter_N_chan(1) = _*inGain <:((limiter_gain_N_chan(1):attackGain:release:meter:ba.db2linear)*_@latency_meter);
+      // limiter_N_chan(1) = _*inGain <:((limiter_gain_N_chan(1):attackRel:release:meter:ba.db2linear)*_@latency_meter);
 
       limiter_N_chan(N) =
       (par(i,N,_*inGain )<:
           ((limiter_gain_N_chan(N)),si.bus(N))
       )
-      :(ro.interleave(N,2):par(i,N,(attackGain:release:meter:ba.db2linear)*(_@latency_meter)));
+      :(ro.interleave(N,2):par(i,N,(attackRel:release:meter:ba.db2linear)*(_@latency_meter)));
 
       linearXfade(x,a,b) = a*(1-x),b*x : +;
 
@@ -95,8 +158,10 @@
       attackGain(x) =
       // x@maxAttackTime;
       // par(i, maxAttackTime+1, (x@i+x *( ((i+1)/(maxAttackTime+1))) : attackShaper )) : minimum(maxAttackTime+1)-x;
-      // par(i, maxAttackTime+1, (x@i) *( ((i+1)/(maxAttackTime+1)) : attackShaper )) : minimum(maxAttackTime+1);
-      par(i, maxAttackTime+1, (x@maxAttackTime+x@i) *( ((i+1)/(maxAttackTime+1)) : attackShaper )) : minimum(maxAttackTime+1)-x@maxAttackTime;
+
+      par(i, maxAttackTime+1, (                x@i) *( ((i+1)/(maxAttackTime+1)) : attackShaper )) : minimum(maxAttackTime+1);
+
+      // par(i, maxAttackTime+1, (x@maxAttackTime+x@i) *( ((i+1)/(maxAttackTime+1)) : attackShaper )) : minimum(maxAttackTime+1)-x@maxAttackTime;
 
       attackShaper(fraction)= ma.tanh(fraction:pow(attack:attackScale)*(attack*5+.1))/ma.tanh(attack*5+.1);
       attackScale(x) = (x+1):pow(7); //from 0-1 to 1-128, just to make the knob fit the aural experience better
