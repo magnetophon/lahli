@@ -30,19 +30,19 @@ wrap(wr,val) = ((val%wr)+wr)%wr;
 attackRel(x) =
   // (attackRamp * ( endGR - startGR )) + startGR
   // (attackRamp@maxAttackTime * ( endGR - startGR )) + startGR
-  // startGR
   // clock/float(HUGE_VAL)
   // (changetime/ma.SR):wrap(1)
   // ramp/maxAttackTime,
-  (ramp@maxAttackTime)/length,
+  (ramp)/length,
   x@maxAttackTime,
-  ramp/maxAttackTime,
-  x
+  startGR,
+  endGR
+  // ramp/maxAttackTime,
+  // x
 
 
                                     // (changetime/SR):wrap(1):max(-0.9):min(0.9)
   // 0.52
-  // ,endGR
    // length/size
   // ,length1/size
    // ,Lrindex1/size
@@ -56,30 +56,34 @@ attackRel(x) =
 with {
   offset = hslider("offset",0, -maxAttackTime,maxAttackTime,1);
 
-  length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime);
+  length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime):max(0):min(maxAttackTime);
 
-  length1 = rwtable(size+2, maxAttackTime, windex , attackCount' , (((Lrindex+offset)%size)+size)%size );
+  length1 =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime);
 
   changetime =  rwtable(size+2, 0, windex , clock , Lrindex);
 
-  ramp = clock-changetime:max(0);
+  ramp = select2( (x@maxAttackTime)==endGR, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 );
+  // ramp = (((clock-changetime)@maxAttackTime)-rampOffset):max(0);
+  rampOffset = (length1 - maxAttackTime):max(0);
 
 
   // length1 = rwtable(size+2, maxAttackTime, windex, attackCount' , Lrindex1);
+  // endGR   = startGR@length;
   endGR   = rwtable(size+2, 0.0, windex, x, GRrindex );
+  // endGR   = rwtable(size+2, 0.0, windex, x@length, (GRrindex-1):wrap(size) );
   startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) );
   // endGR   = rwtable(size+2, 0.0, windex, x, GRrindex);
   // startGR = rwtable(size+2, 0.0, windex, x, (((GRrindex-1)%size)+size)%size );
-  windex = select2(x<x',size+1, windexCount);
-  windex1 = select2(x<x',size+1, (windexCount-1):wrap(size));
-  windexCount = (_<:select2(x<x',_,_+1) % size)~_;
+  windex = select2(x==x', windexCount, size+1);
+  windexCount = (_<:select2(x==x',_+1,_) % size)~_;
   GRrindex = windexCount;
   Lrindex1 = (windexCount+1):wrap(size);
   Lrindex = windexCount;
   attackRamp(x) = // ramp from 0 to 1 in the time between 2 attacks:
     ((attackCount@2) / length) : attackShaper; // latency is 2
   attackCount =
-    select2(x<x',_+1:min(maxAttackTime),0)~_;
+    // select2(x==x',0,_+1:min(maxAttackTime))~_;
+  select2(x==x',0,_+1)~_;
   size = maxAttackTime;
 };
 
