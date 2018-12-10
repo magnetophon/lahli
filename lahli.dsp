@@ -28,10 +28,10 @@ clock = ba.time;
 wrap(wr,val) = ((val%wr)+wr)%wr;
 
 attackRel(x) =
-  linearXfade( attackCtrl, theStart, theEnd ) ,
+  linearXfade( attackCtrl, startGR, endGR ) ,
   x@maxAttackTime,
-  theStart,
-  theEnd
+  startGR,
+  endGR
 with {
   offset = hslider("offset",0, -maxAttackTime,maxAttackTime,1);
 
@@ -41,8 +41,8 @@ with {
 
   changetime =  rwtable(size+2, 0, windex , clock , Lrindex);
 
-  ramp = select2( (x@maxAttackTime)==endGR, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 );
-  attackCtrl = select2( startGR>endGR@maxAttackTime, 0, (ramp/length) );
+  ramp = select2( (x@maxAttackTime)==endGR1, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 );
+  attackCtrl = select2( startGR>endGR, 0, (ramp/length) ) :attackShaper;
   // ramp = (((clock-changetime)@maxAttackTime)-rampOffset):max(0);
   rampOffset = (length1 - maxAttackTime):max(0);
 
@@ -50,18 +50,18 @@ with {
   // length1 = rwtable(size+2, maxAttackTime, windex, attackCount' , Lrindex1);
   // endGR   = startGR@length;
 
-  endGR   = rwtable(size+2, 0.0, windex, x, GRrindex );
+  endGR1   = rwtable(size+2, 0.0, windex, x, GRrindex );
   // endGR =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size));
 
 
   // endGR   = rwtable(size+2, 0.0, windex, x', (GRrindex-1):wrap(size) );
 
-  startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
+  // startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
   // startGR = rwtable(size+2, 0.0, windex, x, GRrindex );
 
   // theEnd =   rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
-  theEnd =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size)@maxAttackTime);
-  theStart = rwtable(size+2, 0.0, windex, x, (GRrindex):wrap(size) )@maxAttackTime;
+  endGR =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size)@maxAttackTime);
+  startGR = rwtable(size+2, 0.0, windex, x, (GRrindex):wrap(size) )@maxAttackTime;
 
   // startGR = rwtable(size+2, 0.0, windex, x',  GRrindex)@(maxAttackTime-1);
 
