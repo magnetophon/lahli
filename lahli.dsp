@@ -34,8 +34,9 @@ attackRel(x) =
   // (changetime/ma.SR):wrap(1)
   // ramp/maxAttackTime,
   (ramp)/length,
+  // select2( startGR>endGR (ramp/length)
   x@maxAttackTime,
-  startGR@maxAttackTime,
+  startGR,
   endGR@maxAttackTime
   // ramp/maxAttackTime,
   // x
@@ -70,8 +71,11 @@ with {
   // length1 = rwtable(size+2, maxAttackTime, windex, attackCount' , Lrindex1);
   // endGR   = startGR@length;
   endGR   = rwtable(size+2, 0.0, windex, x, GRrindex );
-  // endGR   = rwtable(size+2, 0.0, windex, x@length, (GRrindex-1):wrap(size) );
-  startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) );
+  // endGR   = rwtable(size+2, 0.0, windex, x', (GRrindex-1):wrap(size) );
+
+  startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
+  // startGR = rwtable(size+2, 0.0, windex, x',  GRrindex)@(maxAttackTime-1);
+
   // endGR   = rwtable(size+2, 0.0, windex, x, GRrindex);
   // startGR = rwtable(size+2, 0.0, windex, x, (((GRrindex-1)%size)+size)%size );
   windex = select2(x==x', windexCount, size+1);
