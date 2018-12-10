@@ -35,8 +35,8 @@ attackRel(x) =
   // ramp/maxAttackTime,
   (ramp)/length,
   x@maxAttackTime,
-  startGR,
-  endGR
+  startGR@maxAttackTime,
+  endGR@maxAttackTime
   // ramp/maxAttackTime,
   // x
 
