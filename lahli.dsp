@@ -28,32 +28,10 @@ clock = ba.time;
 wrap(wr,val) = ((val%wr)+wr)%wr;
 
 attackRel(x) =
-  // (attackRamp * ( endGR - startGR )) + startGR
-  // (attackRamp@maxAttackTime * ( endGR - startGR )) + startGR
-  // clock/float(HUGE_VAL)
-  // (changetime/ma.SR):wrap(1)
-  // ramp/maxAttackTime,
-  (ramp)/length,
-  // select2( startGR>endGR (ramp/length)
+  linearXfade( attackCtrl, theStart, theEnd ) ,
   x@maxAttackTime,
-  startGR,
-  endGR@maxAttackTime
-  // ramp/maxAttackTime,
-  // x
-
-
-                                    // (changetime/SR):wrap(1):max(-0.9):min(0.9)
-  // 0.52
-   // length/size
-  // ,length1/size
-   // ,Lrindex1/size
-   // (((GRrindex-1)%size)+size)%size
-  // ,attackCount'/size
-   // ,attackRamp
-   // attackRamp
-   // GRrindex/maxAttackTime
-   // ,
-   // ((((GRrindex-1)%size)+size)%size)/maxAttackTime
+  theStart,
+  theEnd
 with {
   offset = hslider("offset",0, -maxAttackTime,maxAttackTime,1);
 
@@ -64,16 +42,27 @@ with {
   changetime =  rwtable(size+2, 0, windex , clock , Lrindex);
 
   ramp = select2( (x@maxAttackTime)==endGR, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 );
+  attackCtrl = select2( startGR>endGR@maxAttackTime, 0, (ramp/length) );
   // ramp = (((clock-changetime)@maxAttackTime)-rampOffset):max(0);
   rampOffset = (length1 - maxAttackTime):max(0);
 
 
   // length1 = rwtable(size+2, maxAttackTime, windex, attackCount' , Lrindex1);
   // endGR   = startGR@length;
+
   endGR   = rwtable(size+2, 0.0, windex, x, GRrindex );
+  // endGR =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size));
+
+
   // endGR   = rwtable(size+2, 0.0, windex, x', (GRrindex-1):wrap(size) );
 
   startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
+  // startGR = rwtable(size+2, 0.0, windex, x, GRrindex );
+
+  // theEnd =   rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
+  theEnd =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size)@maxAttackTime);
+  theStart = rwtable(size+2, 0.0, windex, x, (GRrindex):wrap(size) )@maxAttackTime;
+
   // startGR = rwtable(size+2, 0.0, windex, x',  GRrindex)@(maxAttackTime-1);
 
   // endGR   = rwtable(size+2, 0.0, windex, x, GRrindex);
@@ -111,7 +100,7 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
 
 
     process(x) =
-      attackRel(x);
+      attackRel(x:min(0.9):max(0.1));
     // process =
     // limiter(2);
     // (_<:select2(x==x',_+1,_) % size)~_;
