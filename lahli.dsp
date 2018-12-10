@@ -28,14 +28,13 @@ clock = ba.time;
 wrap(wr,val) = ((val%wr)+wr)%wr;
 
 attackRel(x) =
-  linearXfade( attackCtrl, startGR, endGR ) ,
-  x@maxAttackTime,
-  startGR,
-  endGR
+  (linearXfade( attackCtrl, startGR, endGR ))
+  // ,
+  // x@maxAttackTime,
+  // startGR,
+  // endGR
 with {
-  offset = hslider("offset",0, -maxAttackTime,maxAttackTime,1);
-
-  length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime):max(0):min(maxAttackTime);
+  length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
 
   length1 =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime);
 
@@ -99,10 +98,12 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
     choice  = button("choice");
 
 
-    process(x) =
-      attackRel(x:min(0.9):max(0.1));
-    // process =
-    // limiter(2);
+    // process(x) =
+      // attackRel((x:min(0.999):max(0.001)))
+      // :release
+      // ,x@maxAttackTime;
+    process =
+    limiter(2);
     // (_<:select2(x==x',_+1,_) % size)~_;
     // samplesBetweenChange;
 
@@ -121,9 +122,6 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
 
     // sAndH: (0 for hold, 1 for bypass)
     samplesBetweenChange(x) =  attackCount' : ba.sAndH(x==x'); // latency is 1
-
-
-
 
     attackGRrelative =
       (0: seq(i,maxAttackTime,
@@ -154,7 +152,7 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
       <:(si.bus(N),(minimum(N)<:si.bus(N))):ro.interleave(N,2):par(i,N,(linearXfade(link)));
 
 
-    latency = maxHoldTime + (maxAttackTime*2);
+    latency = maxHoldTime + (maxAttackTime);
     latency_meter = latency:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", latency, latency);
 
     // not really needed:
@@ -199,7 +197,7 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
 
     attackShaper(fraction)= ma.tanh(fraction:pow(attack:attackScale)*(attack*5+.1))/ma.tanh(attack*5+.1);
     attackScale(x) = (x+1):pow(7); //from 0-1 to 1-128, just to make the knob fit the aural experience better
-    attack                  = (hslider("[2]attack shape[tooltip: 0 gives a linear attack (slow), 1 a strongly exponential one (fast)]", 1 , 0, 1 , 0.001));
+    attack                  = (hslider("[2]attack shape[tooltip: 0 gives a linear attack (slow), 1 a strongly exponential one (fast)]", 0.5 , 0, 1 , 0.001));
 
     // get the minimum of N inputs:
     minimum(1) = _;
