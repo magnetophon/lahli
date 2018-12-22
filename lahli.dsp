@@ -1,7 +1,11 @@
 import("stdfaust.lib");
 import("../LazyLeveler/slidingReduce.lib");
 
-// todo: make attack and hold SR dependant
+// todo:
+// make attack and hold SR dependant
+// sample and hold attackShaper shape
+// make shape dependent on length
+
 // Subject: Re: [Faudiostream-users] Status of control/enable primitives and the
 // -es compiler option
 // Date: wo 24 okt 2018 19:32:15 CEST
@@ -24,63 +28,124 @@ import("../LazyLeveler/slidingReduce.lib");
 // gain = (attackRamp@maxAttackTime * ( endGR - startGR )) + startGR
 // attackGain =
 
+process(x) =
+attackRel(x)
+,x@(1*maxAttackTime);
+// process =
+  // limiter(2);
+// (_<:select2(x==x',_+1,_) % size)~_;
+// samplesBetweenChange;
+
 clock = ba.time;
 wrap(wr,val) = ((val%wr)+wr)%wr;
 
 attackRel(x) =
-  (linearXfade( attackCtrl, startGR, endGR ))
+    attackRelFB~_
   // ,
   // x@maxAttackTime,
   // startGR,
   // endGR
-with {
-  length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
+  with {
+    attackRelFB(FB) =
+      (
+        1,//(linearXfade( attackCtrl, startGR, endGR )),
+      (linearXfade( linRamp, startGRlin, endGRlin ))
+      ):min
+      // (linearXfade( attackCtrl, startGR, endGR ))
+      // (linearXfade( attackCtrlLin, startGRLin, endGR ))
+      // ,attackCtrlLin
+      // , (x<x')@maxAttackTime
+      , (x<x')
+      , endGRlin
+      // , endGRlin
+      // , linRamp
+     // , minTrigger
+       // , lowestMin
+         // ,attack
+     // , lowestMin @maxAttackTime
+     // ,attackCtrlMin
+     // , (linearXfade( attackCtrl, startGR, endGR ))
+     // ,(rampMin/maxAttackTime)@maxAttackTime
+     // ,nextMin@maxAttackTime
+        // ,nextMin
+        // , slidingMinN(maxAttackTime,maxAttackTime,x)@maxAttackTime
+        // ,x
+        with {
 
-  length1 =  rwtable(size+2, maxAttackTime, windex , attackCount' , (Lrindex+1):wrap(size)@maxAttackTime);
+  // linRamp = ((clock - changetime)@maxAttackTime):max(0)/maxAttackTime;
+  // linRamp = select2( (x@maxAttackTime)==endGR1, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 )/maxAttackTime;
 
-  changetime =  rwtable(size+2, 0, windex , clock , Lrindex);
+  minTrigger = (FB < lowestMin):ba.impulsify;
+  linRamp = 
+  // (Ramp@maxAttackTime)/maxAttackTime;
+            (ba.countup(maxAttackTime,x!=x')/maxAttackTime);
+    // (ba.countup(maxAttackTime,clock==(changetimeLin))/maxAttackTime);
+  // select2( (x@maxAttackTime)==endGR1, (((clock-changetimeLin)@maxAttackTime)-rampOffset):max(0)/maxAttackTime ,0 );
+
+  lowestMin = slidingMinN(maxAttackTime,maxAttackTime,x);
+
+  // length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (readIndex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
+  length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (readIndex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
+  lengthMin =  rwtable(size+2, maxAttackTime, windex , attackCountMin' , (readIndex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
+
+  length1 =  rwtable(size+2, maxAttackTime, windex , attackCount' , (readIndex+1):wrap(size)@maxAttackTime);
+  length1Min =  rwtable(size+2, maxAttackTime, windex , attackCountMin' , (readIndex+1):wrap(size)@maxAttackTime);
+
+  changetime =  rwtable(size+2, 0, windex , clock , readIndex);
+  changetimeMin =  rwtable(size+2, 0, windex , clock , readIndex);
+  changetimeLin = rwtable(size+2, 0, windex, clock , (readIndex+1):wrap(size));
 
   ramp = select2( (x@maxAttackTime)==endGR1, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 );
+  // rampMin = select2( (x@maxAttackTime)==endGR1Min, (((clock-changetimeMin)@maxAttackTime-rampOffsetMin)):max(0) ,0 );
+  rampMin = select2( 0, (clock-changetimeMin):max(0) ,0 );
+  // rampMin = select2( 0, (((clock-changetimeMin)@maxAttackTime)):max(0) ,0 );
   attackCtrl = select2( startGR>endGR, 0, (ramp/length) ) :attackShaper;
-  // ramp = (((clock-changetime)@maxAttackTime)-rampOffset):max(0);
+  attackCtrlLin = select2( startGR>endGR, 0, (ramp/maxAttackTime) );
+  attackCtrlMin = select2( startGRMin>endGRMin, 0, (rampMin/lengthMin) ) :attackShaper;
   rampOffset = (length1 - maxAttackTime):max(0);
+  rampOffsetMin = (length1Min - maxAttackTime):max(0);
 
 
-  // length1 = rwtable(size+2, maxAttackTime, windex, attackCount' , Lrindex1);
-  // endGR   = startGR@length;
+  endGR1   = rwtable(size+2, 0.0, windex, x, readIndex );
+  endGR1Min   = rwtable(size+2, 0.0, windex, x, readIndex );
 
-  endGR1   = rwtable(size+2, 0.0, windex, x, GRrindex );
-  // endGR =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size));
+  endGR =     rwtable(size+2, 0.0, windex ,    x , (readIndex+1):wrap(size)@maxAttackTime);
+  endGRMin =  rwtable(size+2, 0.0, windex , x , (readIndex):wrap(size)@maxAttackTime);
+  endGRlin =
+    // rwtable(size+2, 0.0, windex , x , (readIndex):wrap(size)@maxAttackTime);
+    x:ba.sAndH(x!=x');
+  startGR =    rwtable(size+2, 0.0, windex, x, (readIndex):wrap(size) )@maxAttackTime;
+  startGRMin = rwtable(size+2, 0.0, windex, FB, readIndex:wrap(size) );
+  startGRlin =
+    // rwtable(size+2, 0.0, windex, FB, readIndex:wrap(size) );
+    FB:ba.sAndH(x!=x');
 
-
-  // endGR   = rwtable(size+2, 0.0, windex, x', (GRrindex-1):wrap(size) );
-
-  // startGR = rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
-  // startGR = rwtable(size+2, 0.0, windex, x, GRrindex );
-
-  // theEnd =   rwtable(size+2, 0.0, windex, x,  (GRrindex-1):wrap(size) )@maxAttackTime;
-  endGR =  rwtable(size+2, 0.0, windex , x , (Lrindex+1):wrap(size)@maxAttackTime);
-  startGR = rwtable(size+2, 0.0, windex, x, (GRrindex):wrap(size) )@maxAttackTime;
-
-  // startGR = rwtable(size+2, 0.0, windex, x',  GRrindex)@(maxAttackTime-1);
-
-  // endGR   = rwtable(size+2, 0.0, windex, x, GRrindex);
-  // startGR = rwtable(size+2, 0.0, windex, x, (((GRrindex-1)%size)+size)%size );
-  windex = select2(x==x', windexCount, size+1);
-  windexCount = (_<:select2(x==x',_+1,_) % size)~_;
-  GRrindex = windexCount;
-  Lrindex1 = (windexCount+1):wrap(size);
-  Lrindex = windexCount;
-  attackRamp(x) = // ramp from 0 to 1 in the time between 2 attacks:
-    ((attackCount@2) / length) : attackShaper; // latency is 2
+  nextChange = x==x';
+  nextMin =
+    nextChange;
+  //  ( slidingMinN(maxAttackTime,maxAttackTime,x) == slidingMinN(maxAttackTime,maxAttackTime,x)' )
+  //;//          | nextChange;
+  windex = select2(nextChange, readIndex, size+1);
+  readIndex =    (_<:select2(nextChange,_+1,_) % size)~_;
+  readIndex1 = (readIndex+1):wrap(size);
+  readIndex1Min = (readIndex+1):wrap(size);
   attackCount =
-    // select2(x==x',0,_+1:min(maxAttackTime))~_;
-  select2(x==x',0,_+1)~_;
+  select2(nextChange,0,_+1)~_;
+  attackCountMin =
+    select2(x==slidingMinN(maxAttackTime,maxAttackTime,x) ,0,_+1)~_;
   size = maxAttackTime;
+  attack = ((length / maxAttackTime ):pow(power) - sub ) * mul : max(0) : min(1);
+  mul = hslider("mul",2,0.1,9,0.01);
+  sub = hslider("sub",1.85,0.1,2,0.01);
+  // sub = hslider("sub",0.85,0.1,2,0.01);
+  power = hslider("power",0.15,0.01,1,0.01);
+  // att = hslider("att",0,0,1,0.1);
+  attackShaper(fraction)= ma.tanh(fraction:pow(attack:attackScale)*(attack*5+.1))/ma.tanh(attack*5+.1);
+  };
 };
 
 // maxHoldTime = 4;
-maxHoldTime = pow(2,12);
+maxHoldTime = pow(2,14);
 // maxAttackTime = 512;
 maxAttackTime = 2048;
 // maxAttackTime = 64;
@@ -98,14 +163,6 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
     choice  = button("choice");
 
 
-    // process(x) =
-      // attackRel((x:min(0.999):max(0.001)))
-      // :release
-      // ,x@maxAttackTime;
-    process =
-    limiter(2);
-    // (_<:select2(x==x',_+1,_) % size)~_;
-    // samplesBetweenChange;
 
 
 
@@ -166,15 +223,15 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
 
     linearXfade(x,a,b) = a*(1-x),b*x : +;
 
-                                       dBgain(x) =
-                                         (
-                                           ((now >  futuredown) * (min(now,_)))
-                                           +
-                                           ((now <= futuredown) * now)
-                                         )~_ with {
-                                   now = currentdown(x)@(maxHoldTime);
-                                   futuredown = currentdown(x):slidingMinN(holdTime,maxHoldTime)@max(0,(maxHoldTime - holdTime ));
-                                 };
+    dBgain(x) =
+    (
+      ((now >  futuredown) * (min(now,_)))
+      +
+      ((now <= futuredown) * now)
+    )~_ with {
+      now = currentdown(x)@(maxHoldTime);
+      futuredown = currentdown(x):slidingMinN(holdTime,maxHoldTime)@max(0,(maxHoldTime - holdTime ));
+    };
 
     currentLevel(x)     = ((abs(x)):ba.linear2db);
 
@@ -195,9 +252,8 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
 
     // par(i, maxAttackTime+1, (x@maxAttackTime+x@i) *( ((i+1)/(maxAttackTime+1)) : attackShaper )) : minimum(maxAttackTime+1)-x@maxAttackTime;
 
-    attackShaper(fraction)= ma.tanh(fraction:pow(attack:attackScale)*(attack*5+.1))/ma.tanh(attack*5+.1);
     attackScale(x) = (x+1):pow(7); //from 0-1 to 1-128, just to make the knob fit the aural experience better
-    attack                  = (hslider("[2]attack shape[tooltip: 0 gives a linear attack (slow), 1 a strongly exponential one (fast)]", 0.5 , 0, 1 , 0.001));
+    // attack                  = (hslider("[2]attack shape[tooltip: 0 gives a linear attack (slow), 1 a strongly exponential one (fast)]", 0 , 0, 1 , 0.001));
 
     // get the minimum of N inputs:
     minimum(1) = _;
@@ -247,3 +303,11 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
                       meter            = GRmeter_group(  _<:(_,(_:min(0):max(-20):( (vbargraph("[unit:dB]", -20, 0))))):attach);
 
                       HUGE_VAL = fconstant(float HUGE_VAL, <math.h>);
+
+                      testSig =
+                        (((((_<:select2(sparse_impulses,_,_-(no.noise:abs/10)))%1)+1)%1)~_)
+                      with {
+                      freq = abs(no.lfnoise0(100)*50);
+                      sparse_impulses =
+                        os.lf_imptrain(freq);
+                      };
