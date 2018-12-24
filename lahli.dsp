@@ -55,8 +55,17 @@ attackRel(x) =
       // (linearXfade( attackCtrlLin, startGRLin, endGR ))
       // ,attackCtrlLin
       // , (x<x')@maxAttackTime
-      , (x<x')
-      , endGRlin
+      // , nextLin @maxAttackTime
+      // ,((changetime-changetimeLin)/maxAttackTime)
+     // ,(prevEnd - prevStart)@maxAttackTime < ( endGRlin - startGRlin )@maxAttackTime
+      // < (startGRlin - endGRlin)
+        // ,( prevStart - startGRlin )@maxAttackTime
+        ,startGRlin
+         // ,endGRlin
+          , par(i,maxAttackTime,array(i)):>_
+        // ,prevEnd
+      // , nextChange
+      // , endGRlin
       // , endGRlin
       // , linRamp
      // , minTrigger
@@ -84,6 +93,7 @@ attackRel(x) =
 
   lowestMin = slidingMinN(maxAttackTime,maxAttackTime,x);
 
+  array(i) =  rwtable(size+2, maxAttackTime, windex , x , i):max(1):min(maxAttackTime); 
   // length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (readIndex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
   length =  rwtable(size+2, maxAttackTime, windex , attackCount' , (readIndex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
   lengthMin =  rwtable(size+2, maxAttackTime, windex , attackCountMin' , (readIndex+1):wrap(size)@maxAttackTime):max(1):min(maxAttackTime);
@@ -93,7 +103,7 @@ attackRel(x) =
 
   changetime =  rwtable(size+2, 0, windex , clock , readIndex);
   changetimeMin =  rwtable(size+2, 0, windex , clock , readIndex);
-  changetimeLin = rwtable(size+2, 0, windex, clock , (readIndex+1):wrap(size));
+  changetimeLin = rwtable(size+2, 0, windex, clock , (readIndex-1):wrap(size));
 
   ramp = select2( (x@maxAttackTime)==endGR1, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 );
   // rampMin = select2( (x@maxAttackTime)==endGR1Min, (((clock-changetimeMin)@maxAttackTime-rampOffsetMin)):max(0) ,0 );
@@ -112,21 +122,41 @@ attackRel(x) =
   endGR =     rwtable(size+2, 0.0, windex ,    x , (readIndex+1):wrap(size)@maxAttackTime);
   endGRMin =  rwtable(size+2, 0.0, windex , x , (readIndex):wrap(size)@maxAttackTime);
   endGRlin =
-    // rwtable(size+2, 0.0, windex , x , (readIndex):wrap(size)@maxAttackTime);
-    x:ba.sAndH(x!=x');
+    rwtable(size+2, 0.0, windex , x , readIndexLin);
+  endGRlinNow =
+    rwtable(size+2, 0.0, windex , x , (readIndex-0):wrap(size));
+  endGRlinPrev =
+    rwtable(size+2, 0.0, windex , x , (readIndex-1):wrap(size));
+    // x:ba.sAndH(x!=x');
   startGR =    rwtable(size+2, 0.0, windex, x, (readIndex):wrap(size) )@maxAttackTime;
   startGRMin = rwtable(size+2, 0.0, windex, FB, readIndex:wrap(size) );
   startGRlin =
-    // rwtable(size+2, 0.0, windex, FB, readIndex:wrap(size) );
-    FB:ba.sAndH(x!=x');
+    rwtable(size+2, 0.0, windex, FB, readIndex);
+  startGRlinPrev =
+               rwtable(size+2, 0.0, windex, FB, (readIndex-1):wrap(size));
+    // FB:ba.sAndH(x!=x');
 
   nextChange = x==x';
-  nextMin =
-    nextChange;
   //  ( slidingMinN(maxAttackTime,maxAttackTime,x) == slidingMinN(maxAttackTime,maxAttackTime,x)' )
   //;//          | nextChange;
   windex = select2(nextChange, readIndex, size+1);
   readIndex =    (_<:select2(nextChange,_+1,_) % size)~_;
+  readIndexLin =    (readIndex-0):wrap(size);
+  // readIndexLin = select2(nextLin, readIndex':ba.sAndH(!nextLin),readIndex);
+  // nextLin =   nextChange & smallerNext;
+  // nextLin = ((startGRlin-endGRlinNow)<(startGRlinPrev-endGRlinPrev)) * 1;// linRamp<1;
+  nextLin = endGRlinNow<endGRlinNow';
+     //(endGRlinNow'< (endGRlinNow * (clock-changetimeLin) / maxAttackTime);
+
+
+  restLength = maxAttackTime - prevLength;
+  prevLength = linRamp':ba.sAndH(nextChange*-1+1);
+
+  prevStart = startGRlin':ba.sAndH(nextChange*-1+1); 
+  prevEnd = endGRlin':ba.sAndH(nextChange*-1+1);
+
+  
+  
   readIndex1 = (readIndex+1):wrap(size);
   readIndex1Min = (readIndex+1):wrap(size);
   attackCount =
@@ -136,7 +166,7 @@ attackRel(x) =
   size = maxAttackTime;
   attack = ((length / maxAttackTime ):pow(power) - sub ) * mul : max(0) : min(1);
   mul = hslider("mul",2,0.1,9,0.01);
-  sub = hslider("sub",1.85,0.1,2,0.01);
+  sub = hslider("sub",0.85,0.1,2,0.01);
   // sub = hslider("sub",0.85,0.1,2,0.01);
   power = hslider("power",0.15,0.01,1,0.01);
   // att = hslider("att",0,0,1,0.1);
