@@ -29,7 +29,7 @@ import("../LazyLeveler/slidingReduce.lib");
 // attackGain =
 
 process(x) =
-  (x: attackRel)
+  (x: attackRel: release )
 ,x@(1*maxAttackTime);
 // process =
   // limiter(2);
