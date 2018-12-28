@@ -48,9 +48,13 @@ attackRel(x) =
   with {
     attackRelFB(FB) =
       (
-      1,// linearXfade( attackCtrl, startGR, endGR ),
+      linearXfade( attackCtrl, startGR, endGR ),
       longAttack
       ):min
+      // ,linearXfade( attackCtrl, startGR, endGR )
+      // ,longAttack
+      // , startGRlin
+      // , endGRlin
       // (linearXfade( attackCtrl, startGR, endGR ))
       // (linearXfade( attackCtrlLin, startGRLin, endGR ))
       // ,attackCtrlLin
@@ -65,8 +69,6 @@ attackRel(x) =
           // , par(i,maxAttackTime,array(i)):>_
         // ,prevEnd
       // , nextChange
-    , startGRlin
-      , endGRlin
       // , linRamp
      // , minTrigger
        // , lowestMin
@@ -95,7 +97,7 @@ attackRel(x) =
 
   linRamp = 
   // (Ramp@maxAttackTime)/maxAttackTime;
-            (ba.countup(maxAttackTime,x!=x')/maxAttackTime);
+    (ba.countup(maxAttackTime,x!=x')/maxAttackTime):attackShaperMan;
     // (ba.countup(maxAttackTime,clock==(changetimeLin))/maxAttackTime);
   // select2( (x@maxAttackTime)==endGR1, (((clock-changetimeLin)@maxAttackTime)-rampOffset):max(0)/maxAttackTime ,0 );
 
@@ -180,6 +182,7 @@ attackRel(x) =
   power = hslider("power",0.15,0.01,1,0.01);
   // att = hslider("att",0,0,1,0.1);
   attackShaper(fraction)= ma.tanh(fraction:pow(attack:attackScale)*(attack*5+.1))/ma.tanh(attack*5+.1);
+  attackShaperMan(fraction)= ma.tanh(fraction:pow(attackSlider:attackScale)*(attackSlider*5+.1))/ma.tanh(attackSlider*5+.1);
   };
 };
 
@@ -336,6 +339,7 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
                       holdTime         = int(knobGroup(hslider("[3]hold time[unit:ms] [tooltip: hold time in ms][scale:log]", 50, 0.1, maxHoldMs ,0.1))/1000*SampleRate);
                       knee             = knobGroup(hslider("[4] knee [unit:dB] [tooltip: soft knee amount in dB]", 0, 0, 30, 0.1));
                       link             = knobGroup(hslider("[5]link channels[tooltip: 0 means independent, 1 fully linked]", 1, 0, 1 , 0.001));
+                      attackSlider     = knobGroup(hslider("[6]attack[tooltip: 0 means slow, 1 fast]", 0.075, 0, 1 , 0.001));
 
                       meterGroup(x)    = mainGroup(vgroup("[1]", x));
                       GRmeter_group(x) = meterGroup(hgroup("[0] GR [tooltip: gain reduction in dB]", x));
