@@ -79,6 +79,12 @@ attackRel(x) =
         // ,nextMin
         // , slidingMinN(maxAttackTime,maxAttackTime,x)@maxAttackTime
         // ,x
+        with {
+
+  // linRamp = ((clock - changetime)@maxAttackTime):max(0)/maxAttackTime;
+  // linRamp = select2( (x@maxAttackTime)==endGR1, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 )/maxAttackTime;
+
+  minTrigger = (FB < lowestMin):ba.impulsify;
 
   longAttack =
     select2(endGRlin>startGRlin,
@@ -87,12 +93,6 @@ attackRel(x) =
     ;
 
 
-        with {
-
-  // linRamp = ((clock - changetime)@maxAttackTime):max(0)/maxAttackTime;
-  // linRamp = select2( (x@maxAttackTime)==endGR1, (((clock-changetime)@maxAttackTime)-rampOffset):max(0) ,0 )/maxAttackTime;
-
-  minTrigger = (FB < lowestMin):ba.impulsify;
   linRamp = 
   // (Ramp@maxAttackTime)/maxAttackTime;
             (ba.countup(maxAttackTime,x!=x')/maxAttackTime);
