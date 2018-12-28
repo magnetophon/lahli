@@ -29,7 +29,7 @@ import("../LazyLeveler/slidingReduce.lib");
 // attackGain =
 
 process(x) =
-attackRel(x)
+  (x: attackRel)
 ,x@(1*maxAttackTime);
 // process =
   // limiter(2);
@@ -48,8 +48,8 @@ attackRel(x) =
   with {
     attackRelFB(FB) =
       (
-        1,//(linearXfade( attackCtrl, startGR, endGR )),
-      (linearXfade( linRamp, startGRlin, endGRlin ))
+      1,// linearXfade( attackCtrl, startGR, endGR ),
+      longAttack
       ):min
       // (linearXfade( attackCtrl, startGR, endGR ))
       // (linearXfade( attackCtrlLin, startGRLin, endGR ))
@@ -60,13 +60,13 @@ attackRel(x) =
      // ,(prevEnd - prevStart)@maxAttackTime < ( endGRlin - startGRlin )@maxAttackTime
       // < (startGRlin - endGRlin)
         // ,( prevStart - startGRlin )@maxAttackTime
-        ,startGRlin
+        // ,startGRlin
          // ,endGRlin
-          , par(i,maxAttackTime,array(i)):>_
+          // , par(i,maxAttackTime,array(i)):>_
         // ,prevEnd
       // , nextChange
-      // , endGRlin
-      // , endGRlin
+    , startGRlin
+      , endGRlin
       // , linRamp
      // , minTrigger
        // , lowestMin
@@ -79,6 +79,14 @@ attackRel(x) =
         // ,nextMin
         // , slidingMinN(maxAttackTime,maxAttackTime,x)@maxAttackTime
         // ,x
+
+  longAttack =
+    select2(endGRlin>startGRlin,
+    linearXfade( linRamp, startGRlin, endGRlin )
+  , endGRlin)
+    ;
+
+
         with {
 
   // linRamp = ((clock - changetime)@maxAttackTime):max(0)/maxAttackTime;
@@ -122,19 +130,20 @@ attackRel(x) =
   endGR =     rwtable(size+2, 0.0, windex ,    x , (readIndex+1):wrap(size)@maxAttackTime);
   endGRMin =  rwtable(size+2, 0.0, windex , x , (readIndex):wrap(size)@maxAttackTime);
   endGRlin =
-    rwtable(size+2, 0.0, windex , x , readIndexLin);
+    // rwtable(size+2, 0.0, windex , x , readIndexLin);
+  // x:ba.sAndH(x!=x');
+    slidingMinN(maxAttackTime,maxAttackTime,x);
   endGRlinNow =
     rwtable(size+2, 0.0, windex , x , (readIndex-0):wrap(size));
   endGRlinPrev =
     rwtable(size+2, 0.0, windex , x , (readIndex-1):wrap(size));
-    // x:ba.sAndH(x!=x');
   startGR =    rwtable(size+2, 0.0, windex, x, (readIndex):wrap(size) )@maxAttackTime;
   startGRMin = rwtable(size+2, 0.0, windex, FB, readIndex:wrap(size) );
   startGRlin =
-    rwtable(size+2, 0.0, windex, FB, readIndex);
+    // rwtable(size+2, 0.0, windex, FB, readIndex);
+  FB:ba.sAndH(x!=x');
   startGRlinPrev =
                rwtable(size+2, 0.0, windex, FB, (readIndex-1):wrap(size));
-    // FB:ba.sAndH(x!=x');
 
   nextChange = x==x';
   //  ( slidingMinN(maxAttackTime,maxAttackTime,x) == slidingMinN(maxAttackTime,maxAttackTime,x)' )
@@ -223,7 +232,7 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
       si.bus(N)<:si.bus(N*2):
       limiter_N_chan(N),
       // ((par(i, N, _*inGain ) : limiter_gain_N_chan(N): par(i, N, attackGain:release:ba.db2linear)));
-      ((par(i, N, _*inGain ) : limiter_gain_N_chan(N): par(i, N, (attackRel:release)/30)));
+      ((par(i, N, _*inGain ) : limiter_gain_N_chan(N): par(i, N, (release:attackRel)/30)));
 
     // generalise limiter gains for N channels.
     // first we define a mono version:
@@ -243,13 +252,13 @@ lim = control(limiter(2), choice==0), control(si.bus(2)@latency, choice==1)
     latency_meter = latency:hbargraph("latency [lv2:reportsLatency] [lv2:integer] [unit:frames]", latency, latency);
 
     // not really needed:
-    // limiter_N_chan(1) = _*inGain <:((limiter_gain_N_chan(1):attackRel:release:meter:ba.db2linear)*_@latency_meter);
+    // limiter_N_chan(1) = _*inGain <:((limiter_gain_N_chan(1):release:attackRel:meter:ba.db2linear)*_@latency_meter);
 
     limiter_N_chan(N) =
       (par(i,N,_*inGain )<:
        ((limiter_gain_N_chan(N)),si.bus(N))
       )
-      :(ro.interleave(N,2):par(i,N,(attackRel:release:meter:ba.db2linear)*(_@latency_meter)));
+      :(ro.interleave(N,2):par(i,N,(release:attackRel:meter:ba.db2linear)*(_@latency_meter)));
 
     linearXfade(x,a,b) = a*(1-x),b*x : +;
 
